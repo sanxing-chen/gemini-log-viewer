@@ -157,8 +157,8 @@
                                  <span class="text-xs font-medium">Gemini</span>
                              </div>
                              
-                             <div v-if="log.responseHtml" class="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl rounded-tl-md p-6 shadow-sm overflow-hidden">
-                                 <div class="prose dark:prose-invert max-w-none prose-neutral prose-sm sm:prose-base">
+                             <div v-if="log.responseHtml" class="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl rounded-tl-md p-6 shadow-sm overflow-hidden group/response transition-all hover:shadow-md">
+                                 <div class="rich-content text-sm sm:text-base">
                                      <div v-html="log.responseHtml" class="w-full overflow-hidden break-words" />
                                  </div>
                              </div>
@@ -282,10 +282,10 @@ const processedLogs = computed(() => {
 // Watch for data load to initialize
 watch(processedLogs, (logs) => {
     if (logs.length > 0 && !selectedDateKey.value) {
-        selectedDateKey.value = logs[0].dateKey || null
+        selectedDateKey.value = logs[0]!.dateKey || null
         if (selectedDateKey.value) {
             // Auto expand the first date
-            const date = new Date(logs[0].time)
+            const date = new Date(logs[0]!.time)
             expandedYears.value.add(date.getFullYear().toString())
             expandedMonths.value.add(`${date.getFullYear()}-${date.toLocaleString('default', { month: 'long' })}`)
         }
@@ -427,7 +427,7 @@ const initObserver = () => {
         // Find visible entries
         const visible = entries.filter(e => e.isIntersecting)
         if (visible.length > 0) {
-             activeLogId.value = visible[0].target.id
+             activeLogId.value = visible[0]!.target.id
         }
     }, {
         root: mainScroll.value,
