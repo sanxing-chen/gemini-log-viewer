@@ -217,12 +217,12 @@ const selectedDateKey = ref<string | null>(null)
 const mainScroll = ref<HTMLElement | null>(null)
 const uploadFile = ref<File | null>(null)
 const uploadedLogs = ref<LogItem[] | null>(null)
-const viewMode = ref<'all' | 'work' | 'life'>('all')
+const viewMode = ref<'all' | 'work' | 'life'>('life')
 
 const tabItems = [
-    { label: 'All', value: 'all' },
+    { label: 'Life', value: 'life' },
     { label: 'Work', value: 'work' },
-    { label: 'Life', value: 'life' }
+    { label: 'All', value: 'all' },
 ]
 
 // Removed selectedTabIndex computed property as we can now v-model directly to viewMode
@@ -292,7 +292,8 @@ const processedLogs = computed(() => {
             isWork: responseHtml.includes('<code') || 
                    responseHtml.includes('<pre') || 
                    responseHtml.includes('class="code') || 
-                   ((responseHtml.match(/\$/g) || []).length + (item.title?.match(/\$/g) || []).length) > 2
+                   ['github', 'reviewer', 'qwen', 'reinforcement learning'].some(kw => (responseHtml.toLowerCase().includes(kw) || (item.title || '').toLowerCase().includes(kw))) ||
+                   ((responseHtml.match(/\$[^$]*\$(?!\d)/g) || []).length * 2 + (item.title?.match(/\$[^$]*\$(?!\d)/g) || []).length * 2) > 5
         }
     })
     .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
