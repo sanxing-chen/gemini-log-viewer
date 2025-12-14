@@ -12,9 +12,38 @@
               color="neutral"
               variant="outline"
               placeholder="Filter..."
-              class="w-full"
-           />
-        </div>
+             class="w-full"
+          />
+          <div class="flex gap-1 mt-2">
+            <UButton 
+              size="xs" 
+              :variant="viewMode === 'all' ? 'solid' : 'ghost'" 
+              color="neutral"
+              class="flex-1 justify-center"
+              @click="viewMode = 'all'"
+            >
+              All
+            </UButton>
+            <UButton 
+              size="xs" 
+              :variant="viewMode === 'work' ? 'solid' : 'ghost'" 
+              color="neutral"
+              class="flex-1 justify-center"
+              @click="viewMode = 'work'"
+            >
+              Work
+            </UButton>
+            <UButton 
+              size="xs" 
+              :variant="viewMode === 'life' ? 'solid' : 'ghost'" 
+              color="neutral"
+              class="flex-1 justify-center" 
+              @click="viewMode = 'life'"
+            >
+              Life
+            </UButton>
+          </div>
+       </div>
         
         <div class="flex-1 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700">
             <div v-if="status === 'pending'" class="flex justify-center py-4">
@@ -198,6 +227,7 @@ interface LogItem {
   responseHtml?: string
   dateKey?: string
   timestamp?: number
+  isWork?: boolean
 }
 
 // Fetch the data
@@ -213,6 +243,7 @@ const selectedDateKey = ref<string | null>(null)
 const mainScroll = ref<HTMLElement | null>(null)
 const uploadFile = ref<File | null>(null)
 const uploadedLogs = ref<LogItem[] | null>(null)
+const viewMode = ref<'all' | 'work' | 'life'>('all')
 let observer: IntersectionObserver | null = null
 
 // Expansion State (managed manually to allow independent toggling)
@@ -259,6 +290,8 @@ const processedLogs = computed(() => {
         const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
         const dd = String(dateObj.getDate()).padStart(2, '0');
         
+        const responseHtml = item.safeHtmlItem?.[0]?.html || '';
+
         return {
             ...item,
             id: `log-${index}`,
@@ -271,16 +304,28 @@ const processedLogs = computed(() => {
                 minute: '2-digit'
             }) : 'Unknown Date',
             shortTime: item.time ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
-            responseHtml: item.safeHtmlItem?.[0]?.html || '',
+            responseHtml: responseHtml,
             dateKey: `${yyyy}-${mm}-${dd}`,
-            timestamp: dateObj.getTime()
+            timestamp: dateObj.getTime(),
+            isWork: responseHtml.includes('<code') || 
+                   responseHtml.includes('<pre') || 
+                   responseHtml.includes('class="code') || 
+                   ((responseHtml.match(/\$/g) || []).length + (item.title?.match(/\$/g) || []).length) > 2
         }
     })
     .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
 })
 
+const visibleLogs = computed(() => {
+    return processedLogs.value.filter(log => {
+        if (viewMode.value === 'work') return log.isWork
+        if (viewMode.value === 'life') return !log.isWork
+        return true
+    })
+})
+
 // Watch for data load to initialize
-watch(processedLogs, (logs) => {
+watch(visibleLogs, (logs) => {
     if (logs.length > 0 && !selectedDateKey.value) {
         selectedDateKey.value = logs[0]!.dateKey || null
         if (selectedDateKey.value) {
@@ -291,81 +336,6 @@ watch(processedLogs, (logs) => {
         }
     }
 }, { immediate: true })
-
-// Calendar Logic
-const calendarDate = computed({
-  get: () => {
-    if (!selectedDateKey.value) {
-        return new CalendarDate(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate())
-    }
-    const parts = selectedDateKey.value.split('-').map(Number)
-    return new CalendarDate(parts[0] ?? 2024, parts[1] ?? 1, parts[2] ?? 1)
-  },
-  set: (val: DateValue) => {
-    if (!val) return
-    const y = val.year
-    const m = String(val.month).padStart(2, '0')
-    const d = String(val.day).padStart(2, '0')
-    const dateKey = `${y}-${m}-${d}`
-    
-    // Select date if distinct
-    if (selectedDateKey.value !== dateKey) {
-        selectDate(dateKey)
-    }
-  }
-})
-
-const availableDates = computed(() => {
-    const set = new Set<string>()
-    if (processedLogs.value) {
-        processedLogs.value.forEach(l => {
-            if (l.dateKey) set.add(l.dateKey)
-        })
-    }
-    return set
-})
-
-const isDateDisabled = (date: DateValue) => {
-    const y = date.year
-    const m = String(date.month).padStart(2, '0')
-    const d = String(date.day).padStart(2, '0')
-    const k = `${y}-${m}-${d}`
-    return !availableDates.value.has(k)
-}
-
-watch(selectedDateKey, (newKey) => {
-    if (!newKey) return
-    const parts = newKey.split('-').map(Number)
-    const y = parts[0]
-    const m = parts[1]
-    const d = parts[2]
-    
-    if (y === undefined || m === undefined || d === undefined) return
-    
-    // Construct date to get month name (be careful with timezone, use local parts)
-    const date = new Date(y, m - 1, d)
-    const year = y.toString()
-    const month = date.toLocaleString('default', { month: 'long' })
-    
-    expandedYears.value.add(year)
-    // Clear other months to ensure only one is active
-    expandedMonths.value.clear()
-    expandedMonths.value.add(`${year}-${month}`)
-}, { immediate: true })
-
-const activeDayLogs = computed(() => {
-    if (!selectedDateKey.value) return []
-    return processedLogs.value.filter(l => l.dateKey === selectedDateKey.value).reverse()
-})
-
-const activeDateLabel = computed(() => {
-    if (!selectedDateKey.value) return ''
-    const log = activeDayLogs.value[0]
-    if (log && log.time) {
-        return new Date(log.time).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-    }
-    return selectedDateKey.value
-})
 
 const selectDate = (dateKey?: string) => {
     if (!dateKey) return
@@ -410,6 +380,83 @@ const toggleMonth = (monthItem: any) => {
     }
 }
 
+// Calendar Logic
+const calendarDate = computed({
+  get: () => {
+    if (!selectedDateKey.value) {
+        return new CalendarDate(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate())
+    }
+    const parts = selectedDateKey.value.split('-').map(Number)
+    return new CalendarDate(parts[0] ?? 2024, parts[1] ?? 1, parts[2] ?? 1)
+  },
+  set: (val: DateValue) => {
+    if (!val) return
+    const y = val.year
+    const m = String(val.month).padStart(2, '0')
+    const d = String(val.day).padStart(2, '0')
+    const dateKey = `${y}-${m}-${d}`
+    
+    // Select date if distinct
+    if (selectedDateKey.value !== dateKey) {
+        selectDate(dateKey)
+    }
+  }
+})
+
+const availableDates = computed(() => {
+    const set = new Set<string>()
+    if (visibleLogs.value) {
+        visibleLogs.value.forEach(l => {
+            if (l.dateKey) set.add(l.dateKey)
+        })
+    }
+    return set
+})
+
+const isDateDisabled = (date: DateValue) => {
+    const y = date.year
+    const m = String(date.month).padStart(2, '0')
+    const d = String(date.day).padStart(2, '0')
+    const k = `${y}-${m}-${d}`
+    return !availableDates.value.has(k)
+}
+
+watch(selectedDateKey, (newKey) => {
+    if (!newKey) return
+    const parts = newKey.split('-').map(Number)
+    const y = parts[0]
+    const m = parts[1]
+    const d = parts[2]
+    
+    if (y === undefined || m === undefined || d === undefined) return
+    
+    // Construct date to get month name (be careful with timezone, use local parts)
+    const date = new Date(y, m - 1, d)
+    const year = y.toString()
+    const month = date.toLocaleString('default', { month: 'long' })
+    
+    expandedYears.value.add(year)
+    // Clear other months to ensure only one is active
+    expandedMonths.value.clear()
+    expandedMonths.value.add(`${year}-${month}`)
+}, { immediate: true })
+
+const activeDayLogs = computed(() => {
+    if (!selectedDateKey.value) return []
+    return visibleLogs.value.filter(l => l.dateKey === selectedDateKey.value).reverse()
+})
+
+const activeDateLabel = computed(() => {
+    if (!selectedDateKey.value) return ''
+    const log = activeDayLogs.value[0]
+    if (log && log.time) {
+        return new Date(log.time).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+    }
+    return selectedDateKey.value
+})
+
+
+
 
 // Intersection Observer
 onMounted(() => {
@@ -441,15 +488,15 @@ const initObserver = () => {
 
 // TOC Construction
 const tocStructure = computed(() => {
-  if (!processedLogs.value.length) return []
+  if (!visibleLogs.value.length) return []
 
   const query = search.value.toLowerCase()
   const groups: Record<string, Record<string, Record<string, any[]>>> = {}
   
   // Group logs
-  processedLogs.value.forEach(log => {
+  visibleLogs.value.forEach(log => {
       // Filter if search is active
-      if (query && !log.cleanTitle?.toLowerCase().includes(query)) {
+      if (query && !log.cleanTitle?.toLowerCase()?.includes(query)) {
           return
       }
 
