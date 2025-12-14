@@ -35,7 +35,7 @@
                 <div v-for="year in tocStructure" :key="year.label" class="space-y-1">
                     <!-- Year Header -->
                      <button 
-                        @click="scrollToLog(year.firstLogId)"
+                        @click="toggleYear(year)"
                         class="w-full flex items-center gap-2 px-2 py-1.5 text-sm font-semibold rounded-md transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
                         :class="year.expanded ? 'text-gray-900 dark:text-gray-100' : 'text-gray-500 dark:text-gray-400'"
                      >
@@ -50,7 +50,7 @@
                      <div v-show="year.expanded" class="pl-4 space-y-1 border-l border-gray-100 dark:border-gray-800 ml-3">
                         <div v-for="month in year.children" :key="month.label" class="space-y-1">
                             <button 
-                                @click="scrollToLog(month.firstLogId)"
+                                @click="toggleMonth(month)"
                                 class="w-full flex items-center gap-2 px-2 py-1 text-sm font-medium rounded-md transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
                                 :class="month.expanded ? 'text-gray-900 dark:text-gray-100' : 'text-gray-500 dark:text-gray-500'"
                             >
@@ -60,17 +60,21 @@
                             <!-- Days -->
                             <div v-show="month.expanded" class="pl-4 space-y-1 border-l border-gray-100 dark:border-gray-800 ml-1">
                                 <div v-for="day in month.children" :key="day.label" class="space-y-1">
-                                     <!-- Day Header (Optional, often just wrapper) -->
-                                    <div class="px-2 py-0.5 text-xs font-bold text-gray-400 uppercase tracking-wider mt-2 mb-1">
+                                     <!-- Day Header (Clickable to select date) -->
+                                    <button
+                                        @click="selectDate(day.dateKey)"
+                                        class="w-full text-left px-2 py-0.5 text-xs font-bold uppercase tracking-wider mt-2 mb-1 hover:text-primary-500 transition-colors"
+                                        :class="selectedDateKey === day.dateKey ? 'text-primary-500' : 'text-gray-400'"
+                                    >
                                         {{ day.label }}
-                                    </div>
+                                    </button>
                                     
                                     <!-- Log Items -->
-                                    <div class="space-y-0.5">
+                                    <div v-show="day.dateKey === selectedDateKey || search.length > 0" class="space-y-0.5">
                                         <button 
                                             v-for="log in day.children" 
                                             :key="log.id"
-                                            @click="scrollToLog(log.id)"
+                                            @click="selectLog(log)"
                                             class="w-full text-left px-2 py-1.5 text-sm rounded-md truncate transition-all duration-200 border-l-2"
                                             :class="activeLogId === log.id 
                                                 ? 'bg-primary-50 dark:bg-primary-900/10 text-primary-600 dark:text-primary-400 border-primary-500 font-medium' 
@@ -91,12 +95,20 @@
       <!-- Main Content -->
       <div class="flex-1 flex flex-col bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden relative">
         <div class="flex-1 overflow-y-auto p-0 scroll-smooth" ref="mainScroll">
-             <div v-if="processedLogs.length === 0" class="h-full flex flex-col items-center justify-center text-gray-400">
+             <div v-if="activeDayLogs.length === 0" class="h-full flex flex-col items-center justify-center text-gray-400">
                  <UIcon name="i-heroicons-inbox" class="w-16 h-16 mb-4 opacity-50" />
                  <p>No messages to display</p>
              </div>
              <div v-else class="divide-y divide-gray-100 dark:divide-gray-800">
-                 <div v-for="log in processedLogs" :key="log.id" :id="log.id" class="p-8 pb-16 min-h-[50vh] flex flex-col gap-8" data-log-item>
+                
+                <!-- Date Header -->
+                <div class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 p-4">
+                    <h1 class="text-xl font-bold text-gray-900 dark:text-white">
+                        {{ activeDateLabel }}
+                    </h1>
+                </div>
+
+                 <div v-for="log in activeDayLogs" :key="log.id" :id="log.id" class="p-8 pb-16 min-h-[50vh] flex flex-col gap-8" data-log-item>
                     <!-- Header Metadata -->
                     <div class="flex flex-wrap items-center justify-between gap-4 pb-4">
                        <div class="flex items-center gap-3">
@@ -166,6 +178,8 @@ interface LogItem {
   cleanTitle?: string
   formattedTime?: string
   responseHtml?: string
+  dateKey?: string
+  timestamp?: number
 }
 
 // Fetch the data
@@ -178,43 +192,118 @@ const { data: rawLogs, status, error } = await useFetch<LogItem[]>('/MyActivity.
 const processedLogs = computed(() => {
   if (!rawLogs.value) return []
   return rawLogs.value
-    .map((item, index) => ({
-      ...item,
-      id: `log-${index}`,
-      cleanTitle: item.title ? item.title.replace(/^Prompted\s*/, '') : 'No Title',
-      formattedTime: item.time ? new Date(item.time).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      }) : 'Unknown Date',
-      responseHtml: item.safeHtmlItem?.[0]?.html || ''
-    }))
-    .sort((a, b) => new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime())
+    .map((item, index) => {
+        const dateObj = item.time ? new Date(item.time) : new Date(0);
+        const yyyy = dateObj.getFullYear();
+        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const dd = String(dateObj.getDate()).padStart(2, '0');
+        
+        return {
+            ...item,
+            id: `log-${index}`,
+            cleanTitle: item.title ? item.title.replace(/^Prompted\s*/, '') : 'No Title',
+            formattedTime: item.time ? dateObj.toLocaleDateString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            }) : 'Unknown Date',
+            responseHtml: item.safeHtmlItem?.[0]?.html || '',
+            dateKey: `${yyyy}-${mm}-${dd}`,
+            timestamp: dateObj.getTime()
+        }
+    })
+    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
 })
 
-// Scroll & Interaction
+// State
 const search = ref('')
 const activeLogId = ref<string | null>(null)
+const selectedDateKey = ref<string | null>(null)
 const mainScroll = ref<HTMLElement | null>(null)
 let observer: IntersectionObserver | null = null
 
-const scrollToLog = (id?: string) => {
-  if (!id) return
+// Expansion State (managed manually to allow independent toggling)
+const expandedYears = ref<Set<string>>(new Set())
+const expandedMonths = ref<Set<string>>(new Set())
+
+// Watch for data load to initialize
+watch(processedLogs, (logs) => {
+    if (logs.length > 0 && !selectedDateKey.value) {
+        selectedDateKey.value = logs[0].dateKey || null
+        if (selectedDateKey.value) {
+            // Auto expand the first date
+            const date = new Date(logs[0].time)
+            expandedYears.value.add(date.getFullYear().toString())
+            expandedMonths.value.add(`${date.getFullYear()}-${date.toLocaleString('default', { month: 'long' })}`)
+        }
+    }
+}, { immediate: true })
+
+const activeDayLogs = computed(() => {
+    if (!selectedDateKey.value) return []
+    return processedLogs.value.filter(l => l.dateKey === selectedDateKey.value).reverse()
+})
+
+const activeDateLabel = computed(() => {
+    if (!selectedDateKey.value) return ''
+    const log = activeDayLogs.value[0]
+    if (log && log.time) {
+        return new Date(log.time).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+    }
+    return selectedDateKey.value
+})
+
+const selectDate = (dateKey?: string) => {
+    if (!dateKey) return
+    selectedDateKey.value = dateKey
+    // Scroll to top of main view
+    if (mainScroll.value) mainScroll.value.scrollTop = 0
+}
+
+const selectLog = (log: LogItem) => {
+    if (log.dateKey && log.dateKey !== selectedDateKey.value) {
+        selectedDateKey.value = log.dateKey
+    }
+    
+    // Wait for render then scroll
+    nextTick(() => {
+        scrollToLogId(log.id)
+    })
+}
+
+const scrollToLogId = (id: string) => {
   const el = document.getElementById(id)
   if (el) {
     el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 }
 
+const toggleYear = (yearItem: any) => {
+    if (expandedYears.value.has(yearItem.label)) {
+        expandedYears.value.delete(yearItem.label)
+    } else {
+        expandedYears.value.add(yearItem.label)
+    }
+}
+
+const toggleMonth = (monthItem: any) => {
+    if (expandedMonths.value.has(monthItem.uniqueId)) { // Use uniqueId for month to avoid name collisions across years
+        expandedMonths.value.delete(monthItem.uniqueId)
+    } else {
+        expandedMonths.value.add(monthItem.uniqueId)
+    }
+}
+
+
 // Intersection Observer
 onMounted(() => {
-  watch(() => processedLogs.value.length, () => {
-       if (processedLogs.value.length > 0) {
+  watch(() => activeDayLogs.value, () => {
+       if (activeDayLogs.value.length > 0) {
            nextTick(initObserver)
        }
-  }, { immediate: true })
+  })
 })
 
 const initObserver = () => {
@@ -224,35 +313,17 @@ const initObserver = () => {
         // Find visible entries
         const visible = entries.filter(e => e.isIntersecting)
         if (visible.length > 0) {
-             // Prefer the one closest to the top (first in the list usually)
-             // IntersectionObserver entries order is not guaranteed to be visual order always, 
-             // but usually strictly ordered by DOM.
              activeLogId.value = visible[0].target.id
         }
     }, {
         root: mainScroll.value,
-        threshold: 0.1, // Trigger when 10% visible
-        rootMargin: '-10% 0px -70% 0px' // Bias selection towards the top of the viewport
+        threshold: 0.1, 
+        rootMargin: '-10% 0px -70% 0px' 
     })
     
     const items = document.querySelectorAll('[data-log-item]')
     items.forEach(el => observer?.observe(el))
 }
-
-// Derived State for Expansion
-// Identify the "Active" hierarchy based on activeLogId
-const activeHierarchy = computed(() => {
-    if (!activeLogId.value) return { year: null, month: null, day: null }
-    const log = processedLogs.value.find(l => l.id === activeLogId.value)
-    if (!log || !log.time) return { year: null, month: null, day: null }
-    
-    const date = new Date(log.time)
-    return {
-        year: date.getFullYear().toString(),
-        month: date.toLocaleString('default', { month: 'long' }),
-        day: date.getDate().toString().padStart(2, '0')
-    }
-})
 
 // TOC Construction
 const tocStructure = computed(() => {
@@ -280,46 +351,43 @@ const tocStructure = computed(() => {
       
       groups[year][month][day].push({
           id: log.id,
-          label: log.cleanTitle || 'No Title'
+          label: log.cleanTitle || 'No Title',
+          dateKey: log.dateKey
       })
   })
 
   // Build Hierarchy
-  // Sort Years Desc
   return Object.keys(groups).sort((a, b) => b.localeCompare(a)).map(year => {
-      const yearIsActive = activeHierarchy.value.year === year
-      const yearHasMatch = query.length > 0 // If filtered, we have matches by definition of the loop above
-      
-      const childrenMonths = Object.keys(groups[year]).map(month => {
-          const monthIsActive = activeHierarchy.value.month === month
-          
-          const childrenDays = Object.keys(groups[year][month])
+      const yearHasMatch = query.length > 0 // If filtered, expand
+      const isExpandedYear = expandedYears.value.has(year) || yearHasMatch
+
+      const childrenMonths = Object.keys(groups[year] || {}).map(month => {
+          const uniqueMonthId = `${year}-${month}`
+          const isExpandedMonth = expandedMonths.value.has(uniqueMonthId) || yearHasMatch
+
+          const childrenDays = Object.keys(groups[year]![month])
             .sort((a,b) => parseInt(b) - parseInt(a))
-            .map(day => ({
-                label: `Day ${day}`,
-                children: groups[year][month][day], // Logs
-                // In day view, we always just show the list if the month is open
-            }))
-            
-          // If first log of month is needed
-          const firstLogId = childrenDays[0]?.children?.[0]?.id
+            .map(day => {
+                const dayLogs = groups[year]![month][day]!
+                return {
+                    label: `Day ${day}`,
+                    dateKey: dayLogs[0]?.dateKey,
+                    children: dayLogs.reverse()
+                }
+            })
 
           return {
               label: month,
+              uniqueId: uniqueMonthId,
               children: childrenDays,
-              expanded: query.length > 0 || (yearIsActive && monthIsActive),
-              firstLogId
+              expanded: isExpandedMonth
           }
       })
-      
-      // If first log of year is needed
-      const firstLogId = childrenMonths[0]?.firstLogId
 
       return {
           label: year,
           children: childrenMonths,
-          expanded: query.length > 0 || yearIsActive,
-          firstLogId
+          expanded: isExpandedYear
       }
   })
 })
