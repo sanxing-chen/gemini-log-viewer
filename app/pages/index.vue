@@ -96,12 +96,13 @@
                                             v-for="log in day.children" 
                                             :key="log.id"
                                             @click="selectLog(log)"
-                                            class="w-full text-left px-2 py-1.5 text-sm rounded-md truncate transition-all duration-200 border-l-2"
+                                            class="w-full text-left px-2 py-1.5 text-sm rounded-md transition-all duration-200 border-l-2 flex items-center justify-between gap-2 group"
                                             :class="activeLogId === log.id 
                                                 ? 'bg-primary-50 dark:bg-primary-900/10 text-primary-600 dark:text-primary-400 border-primary-500 font-medium' 
                                                 : 'text-gray-600 dark:text-gray-400 border-transparent hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200'"
                                         >
-                                            {{ log.label }}
+                                            <span class="truncate flex-1 min-w-0">{{ log.label }}</span>
+                                            <span class="text-xs font-mono opacity-50 group-hover:opacity-100 transition-opacity whitespace-nowrap">{{ log.time }}</span>
                                         </button>
                                     </div>
                                 </div>
@@ -120,7 +121,7 @@
                  <UIcon name="i-heroicons-inbox" class="w-16 h-16 mb-4 opacity-50" />
                  <p>No messages to display</p>
              </div>
-             <div v-else class="divide-y divide-gray-100 dark:divide-gray-800">
+             <div v-else class="pb-20">
                 
                 <!-- Date Header -->
                 <div class="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 p-4 flex items-center justify-between">
@@ -130,25 +131,18 @@
                     <UColorModeSwitch />
                 </div>
 
-                 <div v-for="log in activeDayLogs" :key="log.id" :id="log.id" class="p-8 pb-16 min-h-[50vh] flex flex-col gap-8" data-log-item>
-                    <!-- Header Metadata -->
-                    <div class="flex flex-wrap items-center justify-between gap-4 pb-4">
-                       <div class="flex items-center gap-3">
-                          <UBadge color="primary" variant="subtle" size="sm">{{ log.header }}</UBadge>
-                          <span class="text-sm text-gray-500 font-mono">{{ log.formattedTime }}</span>
-                       </div>
-                       <div class="flex gap-2">
-                           <UBadge v-for="prod in log.products" :key="prod" color="neutral" variant="outline" size="xs">{{ prod }}</UBadge>
-                       </div>
-                    </div>
-
+                 <div v-for="log in activeDayLogs" :key="log.id" :id="log.id" class="px-4 py-6 flex flex-col gap-6" data-log-item>
                     <!-- User Prompt -->
-                    <div class="flex justify-end pl-12 group">
-                        <div class="flex flex-col items-end gap-1 max-w-[85%]">
-                             <div class="flex items-center gap-2 opacity-60 mr-1">
-                                 <span class="text-xs font-medium">You</span>
-                                 <UIcon name="i-heroicons-user" class="w-3 h-3" />
+                    <div class="flex flex-col items-end pl-12 group">
+                        <!-- Time and Metadata -->
+                        <div class="flex items-center gap-2 mb-1 opacity-60 mr-1">
+                             <div class="flex gap-1" v-if="log.products && log.products.length">
+                                <UBadge v-for="prod in log.products" :key="prod" color="neutral" variant="outline" size="xs">{{ prod }}</UBadge>
                              </div>
+                             <span class="text-xs font-mono" v-if="log.shortTime">{{ log.shortTime }}</span>
+                        </div>
+
+                        <div class="flex flex-col items-end gap-1 max-w-[85%]">
                              <div class="bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-2xl rounded-tr-md px-5 py-3 shadow-sm text-base leading-relaxed whitespace-pre-wrap">
                                 {{ log.cleanTitle }}
                              </div>
@@ -276,6 +270,7 @@ const processedLogs = computed(() => {
                 hour: '2-digit',
                 minute: '2-digit'
             }) : 'Unknown Date',
+            shortTime: item.time ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '',
             responseHtml: item.safeHtmlItem?.[0]?.html || '',
             dateKey: `${yyyy}-${mm}-${dd}`,
             timestamp: dateObj.getTime()
@@ -463,6 +458,7 @@ const tocStructure = computed(() => {
       const year = date.getFullYear().toString()
       const month = date.toLocaleString('default', { month: 'long' })
       const day = date.getDate().toString().padStart(2, '0')
+      const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
       
       if (!groups[year]) groups[year] = {}
       if (!groups[year][month]) groups[year][month] = {}
@@ -471,7 +467,8 @@ const tocStructure = computed(() => {
       groups[year][month][day].push({
           id: log.id,
           label: log.cleanTitle || 'No Title',
-          dateKey: log.dateKey
+          dateKey: log.dateKey,
+          time
       })
   })
 
