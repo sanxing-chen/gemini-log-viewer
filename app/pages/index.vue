@@ -1,6 +1,6 @@
 <template>
   <div class="h-screen flex flex-col bg-gray-50 dark:bg-gray-950">
-    <UContainer class="flex-1 w-full max-w-none p-4 flex gap-4 overflow-hidden">
+    <UContainer class="flex-1 w-full p-4 flex gap-4 overflow-hidden">
       
       <!-- Sidebar / TOC -->
       <div class="w-1/3 min-w-[300px] flex flex-col bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
@@ -26,6 +26,15 @@
             </div>
             
             <nav v-else class="space-y-1">
+                <!-- Calendar -->
+                <div class="px-2 py-2 mb-2 border-b border-gray-100 dark:border-gray-800 flex justify-center">
+                    <UCalendar 
+                        v-model="calendarDate" 
+                        :is-date-unavailable="isDateDisabled" 
+                        class="p-2"
+                    />
+                </div>
+
                 <!-- Data Empty State -->
                 <div v-if="!tocStructure.length" class="text-center text-gray-400 text-sm py-8">
                     No results found
@@ -162,6 +171,8 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { CalendarDate } from '@internationalized/date'
+import type { DateValue } from '@internationalized/date'
 
 interface HtmlItem {
   html: string
@@ -241,6 +252,67 @@ watch(processedLogs, (logs) => {
     }
 }, { immediate: true })
 
+// Calendar Logic
+const calendarDate = computed({
+  get: () => {
+    if (!selectedDateKey.value) {
+        return new CalendarDate(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate())
+    }
+    const parts = selectedDateKey.value.split('-').map(Number)
+    return new CalendarDate(parts[0] ?? 2024, parts[1] ?? 1, parts[2] ?? 1)
+  },
+  set: (val: DateValue) => {
+    if (!val) return
+    const y = val.year
+    const m = String(val.month).padStart(2, '0')
+    const d = String(val.day).padStart(2, '0')
+    const dateKey = `${y}-${m}-${d}`
+    
+    // Select date if distinct
+    if (selectedDateKey.value !== dateKey) {
+        selectDate(dateKey)
+    }
+  }
+})
+
+const availableDates = computed(() => {
+    const set = new Set<string>()
+    if (processedLogs.value) {
+        processedLogs.value.forEach(l => {
+            if (l.dateKey) set.add(l.dateKey)
+        })
+    }
+    return set
+})
+
+const isDateDisabled = (date: DateValue) => {
+    const y = date.year
+    const m = String(date.month).padStart(2, '0')
+    const d = String(date.day).padStart(2, '0')
+    const k = `${y}-${m}-${d}`
+    return !availableDates.value.has(k)
+}
+
+watch(selectedDateKey, (newKey) => {
+    if (!newKey) return
+    const parts = newKey.split('-').map(Number)
+    const y = parts[0]
+    const m = parts[1]
+    const d = parts[2]
+    
+    if (y === undefined || m === undefined || d === undefined) return
+    
+    // Construct date to get month name (be careful with timezone, use local parts)
+    const date = new Date(y, m - 1, d)
+    const year = y.toString()
+    const month = date.toLocaleString('default', { month: 'long' })
+    
+    expandedYears.value.add(year)
+    // Clear other months to ensure only one is active
+    expandedMonths.value.clear()
+    expandedMonths.value.add(`${year}-${month}`)
+}, { immediate: true })
+
 const activeDayLogs = computed(() => {
     if (!selectedDateKey.value) return []
     return processedLogs.value.filter(l => l.dateKey === selectedDateKey.value).reverse()
@@ -292,6 +364,8 @@ const toggleMonth = (monthItem: any) => {
     if (expandedMonths.value.has(monthItem.uniqueId)) { // Use uniqueId for month to avoid name collisions across years
         expandedMonths.value.delete(monthItem.uniqueId)
     } else {
+        // Enforce single active month
+        expandedMonths.value.clear()
         expandedMonths.value.add(monthItem.uniqueId)
     }
 }
@@ -365,7 +439,7 @@ const tocStructure = computed(() => {
           const uniqueMonthId = `${year}-${month}`
           const isExpandedMonth = expandedMonths.value.has(uniqueMonthId) || yearHasMatch
 
-          const childrenDays = Object.keys(groups[year]![month])
+          const childrenDays = Object.keys(groups[year]?.[month] || {})
             .sort((a,b) => parseInt(b) - parseInt(a))
             .map(day => {
                 const dayLogs = groups[year]![month][day]!
