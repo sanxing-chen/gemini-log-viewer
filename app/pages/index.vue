@@ -20,7 +20,7 @@
        </div>
         
         <div class="flex-1 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700">
-            <div v-if="status === 'pending'" class="flex justify-center py-4">
+            <div v-if="(status === 'pending' || status === 'idle') && !uploadedLogs" class="flex justify-center py-4">
                 <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 animate-spin text-primary-500" />
             </div>
              <div v-else-if="status === 'error' && !uploadedLogs" class="flex flex-col items-center justify-center p-6 space-y-4">

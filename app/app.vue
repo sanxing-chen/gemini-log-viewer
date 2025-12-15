@@ -11,7 +11,7 @@ useHead({
   }
 })
 
-const title = 'Gemini Log UI'
+const title = 'Gemini Log Viewer'
 const description = 'A beautiful interface for exploring your Google Gemini activity logs.'
 
 useSeoMeta({
