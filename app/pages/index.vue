@@ -108,7 +108,7 @@
                 to="https://github.com/sanxing-chen/gemini-log-viewer"
                 target="_blank"
                 icon="i-simple-icons-github"
-                color="gray"
+                color="neutral"
                 variant="ghost"
             />
             <UColorModeSwitch />
