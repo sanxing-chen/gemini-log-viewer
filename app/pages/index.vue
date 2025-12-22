@@ -133,8 +133,8 @@
              <div v-if="processedLogs.length === 0" class="h-full flex flex-col items-center justify-center p-8 overflow-y-auto">
                  <div class="max-w-2xl w-full space-y-8 bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
                     <div class="text-center space-y-2">
-                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Welcome to Gemini Log Viewer</h2>
-                        <p class="text-gray-500 dark:text-gray-400">Upload your Google Takeout data to get started</p>
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Welcome to Log Viewer</h2>
+                        <p class="text-gray-500 dark:text-gray-400">Upload your Google Takeout or Grok data to get started</p>
                     </div>
 
                     <div class="space-y-4">
@@ -146,7 +146,7 @@
                         </h3>
                         
                         <ol class="space-y-3 text-sm text-gray-600 dark:text-gray-400 list-decimal list-outside pl-4">
-                            <li>Go to <a href="https://takeout.google.com/" target="_blank" class="text-primary-500 hover:underline font-medium">Google Takeout</a>.</li>
+                            <li><strong>Gemini:</strong> Go to <a href="https://takeout.google.com/" target="_blank" class="text-primary-500 hover:underline font-medium">Google Takeout</a>.</li>
                             <li>In "Select data to include", click <strong>Deselect all</strong>.</li>
                             <li>Find <strong>Gemini</strong> under <strong>My Activity</strong> and check the box.
                                 <UPopover mode="hover" :popper="{ placement: 'bottom-end' }">
@@ -163,6 +163,7 @@
                             <li>Download and unzip the file when ready.</li>
                             <li>Locate <code>Gemini/MyActivity.json</code> in the folder.</li>
                             <li>Upload the file below.</li>
+                            <li><strong>Grok:</strong> Go to <strong>Settings -> Data Controls -> Export Account data</strong> and upload `prod-grok-backend.json`.</li>
                         </ol>
                     </div>
 

@@ -27,6 +27,8 @@ To use this viewer, you need to export your Gemini data from Google Takeout:
 9. Locate the `Gemini/MyActivity.json` file inside the extracted folder.
 10. Upload this file to the demo website or the local application.
 
+**Note:** You can also view logs from **xAI's Grok**. Go to **Settings -> Data Controls -> Export Account data**, download the data, and upload the `prod-grok-backend.json` file here.
+
 ![Takeout](./public/takeout.jpg)
 
 ## Development
